@@ -1,13 +1,16 @@
 #!/bin/bash
 set -e
 
+# Load configuration
+source "$(dirname "$0")/config.sh"
+
 echo "🚀 Setting up complete Keycloak development environment"
 echo "========================================================"
 echo ""
 
 # Check if realm name is provided
-REALM="${1:-test-realm}"
-CLIENT="${2:-test-client}"
+REALM="${1:-${DEFAULT_REALM}}"
+CLIENT="${2:-${DEFAULT_CLIENT}}"
 
 echo "📋 Configuration:"
 echo "   Realm:     $REALM"
@@ -17,11 +20,6 @@ echo ""
 # Start Keycloak
 echo "1️⃣  Starting Keycloak..."
 ./scripts/start-keycloak.sh
-
-# Wait for Keycloak to be fully ready
-echo ""
-echo "⏳ Waiting for Keycloak to initialize (30 seconds)..."
-sleep 30
 
 # Setup realm
 echo ""
@@ -39,9 +37,9 @@ echo "✅ Development environment ready!"
 echo "========================================="
 echo ""
 echo "🎯 Quick Start:"
-echo "   Admin Console:  http://localhost:8080"
-echo "   Username:       admin / admin"
-echo "   Debug Port:     5005"
+echo "   Admin Console:  http://localhost:${KEYCLOAK_PORT}"
+echo "   Username:       ${KEYCLOAK_ADMIN_USER} / ${KEYCLOAK_ADMIN_PASS}"
+echo "   Debug Port:     ${KEYCLOAK_DEBUG_PORT}"
 echo ""
 echo "🧪 Test User:"
 echo "   Username:       testuser"
@@ -51,3 +49,4 @@ echo "📝 Next steps:"
 echo "   - Build extension:  ./scripts/build-deploy.sh"
 echo "   - View logs:        ./scripts/logs.sh"
 echo "   - Attach debugger:  F5 in VS Code"
+echo "   - Check status:     ./scripts/status.sh"

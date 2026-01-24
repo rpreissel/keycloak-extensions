@@ -1,8 +1,11 @@
 #!/bin/bash
 set -e
 
-REALM="${1:-test-realm}"
-CLIENT="${2:-test-client}"
+# Load configuration
+source "$(dirname "$0")/config.sh"
+
+REALM="${1:-${DEFAULT_REALM}}"
+CLIENT="${2:-${DEFAULT_CLIENT}}"
 
 echo "👤 Creating test client in realm: $REALM"
 echo "   Client ID: $CLIENT"
@@ -42,12 +45,12 @@ echo "   Username:      testuser"
 echo "   Password:      test123"
 echo ""
 echo "🧪 Test Authorization Code Flow:"
-echo "   open \"http://localhost:8080/realms/$REALM/protocol/openid-connect/auth?client_id=$CLIENT&redirect_uri=http://localhost:3000/callback&response_type=code&scope=openid\""
+echo "   open \"http://localhost:${KEYCLOAK_PORT}/realms/$REALM/protocol/openid-connect/auth?client_id=$CLIENT&redirect_uri=http://localhost:3000/callback&response_type=code&scope=openid\""
 echo ""
 echo "🧪 Test Direct Grant (Password Flow):"
-echo "   http --form POST http://localhost:8080/realms/$REALM/protocol/openid-connect/token \\"
-echo "     grant_type=password \\"
-echo "     client_id=$CLIENT \\"
-echo "     username=testuser \\"
-echo "     password=test123 \\"
-echo "     scope=openid"
+echo "   curl -X POST http://localhost:${KEYCLOAK_PORT}/realms/$REALM/protocol/openid-connect/token \\"
+echo "     -d grant_type=password \\"
+echo "     -d client_id=$CLIENT \\"
+echo "     -d username=testuser \\"
+echo "     -d password=test123 \\"
+echo "     -d scope=openid"

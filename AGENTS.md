@@ -7,7 +7,7 @@ This is a Keycloak Extension (SPI) development project using Maven, Java 17+, an
 **Tech Stack:**
 - Java 17+ (LTS)
 - Maven 3.8+
-- Keycloak 24.0.5 (Quarkus-based)
+- Keycloak 26.5.2 (Latest, Quarkus-based)
 - Podman Compose (container orchestration)
 - PostgreSQL 15 (database)
 
@@ -317,6 +317,8 @@ All scripts are in `./scripts/` and are executable.
 | `debug.sh` | Show debug info and test connection |
 | `setup-realm.sh [name]` | Create new realm |
 | `create-test-client.sh [realm] [client]` | Create client + test user |
+| `status.sh` | Show complete environment status |
+| `wait-for-keycloak.sh [timeout]` | Wait for Keycloak health check |
 
 ---
 
@@ -337,11 +339,17 @@ All scripts are in `./scripts/` and are executable.
 
 ## Admin Console & URLs
 
-- **Admin Console**: http://localhost:8080
+- **Admin Console**: http://localhost:8081
 - **Username**: admin
 - **Password**: admin
 - **Debug Port**: localhost:5005
+- **Management Interface**: http://localhost:9000 (health, metrics)
 - **PostgreSQL**: localhost:5432 (keycloak/keycloak)
+
+### Health & Monitoring
+- **Health Check**: http://localhost:9000/health
+- **Metrics**: http://localhost:9000/metrics
+- **Ready Check**: http://localhost:9000/health/ready
 
 ---
 
@@ -369,6 +377,6 @@ podman-compose up -d
 
 ## Resources
 
-- **Keycloak Docs**: https://www.keycloak.org/docs/24.0.5/
-- **Server Developer Guide**: https://www.keycloak.org/docs/24.0.5/server_development/
-- **API JavaDocs**: https://www.keycloak.org/docs-api/24.0.5/javadocs/
+- **Keycloak Docs**: https://www.keycloak.org/docs/26.5/
+- **Server Developer Guide**: https://www.keycloak.org/docs/26.5/server_development/
+- **API JavaDocs**: https://www.keycloak.org/docs-api/26.5.2/javadocs/

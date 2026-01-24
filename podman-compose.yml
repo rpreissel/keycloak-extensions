@@ -21,10 +21,10 @@ services:
       retries: 5
 
   keycloak:
-    image: quay.io/keycloak/keycloak:24.0.5
+    image: quay.io/keycloak/keycloak:26.5.2
     container_name: keycloak-dev
     environment:
-      # Admin User
+      # Admin User (Keycloak 26.x - new variables)
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
       KC_BOOTSTRAP_ADMIN_PASSWORD: admin
       
@@ -44,7 +44,8 @@ services:
       KC_METRICS_ENABLED: "true"
       KC_LOG_LEVEL: INFO
     ports:
-      - "8080:8080"
+      - "8081:8080"
+      - "9000:9000"  # Management interface
       - "5005:5005"
     volumes:
       - ./providers:/opt/keycloak/providers:z
@@ -56,7 +57,7 @@ services:
     command:
       - start-dev
     healthcheck:
-      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/8080;echo -e 'GET /health/ready HTTP/1.1\r\nhost: 127.0.0.1\r\nConnection: close\r\n\r\n' >&3;if [ $? -eq 0 ]; then echo 'Healthcheck Successful';exit 0;else echo 'Healthcheck Failed';exit 1;fi;"]
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000;echo -e 'GET /health/ready HTTP/1.1\r\nhost: 127.0.0.1\r\nConnection: close\r\n\r\n' >&3;if [ $? -eq 0 ]; then echo 'Healthcheck Successful';exit 0;else echo 'Healthcheck Failed';exit 1;fi;"]
       interval: 30s
       timeout: 10s
       retries: 5
