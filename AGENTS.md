@@ -10,8 +10,9 @@ This is a Keycloak Extension (SPI) development project using Maven, Java 17+, an
 - Keycloak 26.5.2 (Latest, Quarkus-based)
 - Podman Compose (container orchestration)
 - PostgreSQL 15 (database)
+- **OpenTofu** (open-source declarative Keycloak configuration)
 
-**Important**: This project is optimized for developer convenience. All workflows use scripts in `./scripts/` directory.
+**Important**: This project uses **declarative configuration** via OpenTofu. All workflows use scripts in `./scripts/` directory.
 
 ---
 
@@ -23,9 +24,11 @@ This is a Keycloak Extension (SPI) development project using Maven, Java 17+, an
 ```
 This script:
 - Starts Keycloak + PostgreSQL
-- Creates test realm
-- Creates test client and user
+- Initializes OpenTofu (if needed)
+- Applies declarative configuration (realm, client, user)
 - Everything ready for development!
+
+**Key Difference**: Configuration is now **declarative** (defined in `terraform/*.tf` files), not imperative scripts.
 
 ### Individual Scripts
 
@@ -54,12 +57,16 @@ This script:
 ./scripts/debug.sh              # Show debug info and test connection
 ```
 
-**Realm Setup:**
+**OpenTofu Configuration (Declarative):**
 ```bash
-./scripts/setup-realm.sh                    # Create "test-realm"
-./scripts/setup-realm.sh my-realm           # Create custom realm
-./scripts/create-test-client.sh test-realm  # Create client + test user
+./scripts/tf-init.sh                # Initialize OpenTofu (one-time)
+./scripts/tf-plan.sh                # Preview configuration changes
+./scripts/tf-apply.sh               # Apply configuration
+./scripts/tf-destroy.sh             # Remove all OpenTofu-managed resources
 ```
+
+**Legacy Realm Setup (Removed):**
+Previously used imperative scripts (`setup-realm.sh`, `create-test-client.sh`) - now replaced by declarative OpenTofu configuration.
 
 ---
 
@@ -258,6 +265,123 @@ Run → Edit Configurations → Remote JVM Debug
 
 ---
 
+## Keycloak Configuration with OpenTofu
+
+**Philosophy**: Use **declarative** configuration instead of imperative scripts. Define the desired state, OpenTofu makes it happen.
+
+**What is OpenTofu?** Open-source Terraform fork (MPL 2.0 license), fully compatible with Terraform configurations.
+
+### Configuration Structure
+
+```
+terraform/
+├── main.tf              # Provider config + resources (realm, client, user)
+├── variables.tf         # Input variables
+├── outputs.tf           # Outputs (realm ID, URLs, etc.)
+├── terraform.tfvars     # Default values (NO SECRETS!)
+└── .gitignore           # OpenTofu cache
+```
+
+### Configuration Files
+
+**Main Resources** (`terraform/main.tf`):
+- Keycloak realm (test-realm)
+- OpenID Connect client (test-client)
+- Test user with password
+
+**Variables** (`terraform/variables.tf`):
+- Keycloak connection (URL, admin credentials)
+- Realm settings
+- Client settings
+- User settings
+
+**Secrets** (`scripts/.env`):
+- Admin password: `TF_VAR_admin_password`
+- Test user password: `TF_VAR_test_user_password`
+
+### Workflow: Changing Configuration
+
+1. **Edit configuration**:
+   ```bash
+   vim terraform/terraform.tfvars  # Change values
+   # OR
+   vim terraform/main.tf           # Change resources
+   ```
+
+2. **Preview changes**:
+   ```bash
+   ./scripts/tf-plan.sh
+   ```
+   This shows **exactly** what will change (add/modify/delete).
+
+3. **Apply changes**:
+   ```bash
+   ./scripts/tf-apply.sh
+   ```
+   Terraform updates Keycloak to match your configuration.
+
+### Example: Add a New Client
+
+Edit `terraform/main.tf`, add:
+
+```hcl
+resource "keycloak_openid_client" "my_new_client" {
+  realm_id  = keycloak_realm.test_realm.id
+  client_id = "my-new-client"
+  name      = "My New Client"
+  enabled   = true
+  
+  access_type = "CONFIDENTIAL"
+  valid_redirect_uris = ["https://app.example.com/*"]
+  
+  # Get client secret
+  client_secret = "supersecret"  # Or use random provider
+}
+```
+
+Then:
+```bash
+./scripts/tf-plan.sh   # Preview
+./scripts/tf-apply.sh  # Apply
+```
+
+### Drift Detection
+
+Check if someone manually changed Keycloak configuration:
+
+```bash
+./scripts/tf-plan.sh
+# -> Zeigt ob jemand manuell was geändert hat
+```
+
+**Fix drift**:
+```bash
+./scripts/tf-apply.sh  # Restore to declared state
+```
+
+### State Management
+
+OpenTofu tracks what it created in **state files** (`terraform.tfstate`).
+
+**Important**:
+- State files are in `.gitignore` (contain secrets!)
+- For teams: Use remote state (S3, OpenTofu Cloud)
+- Local development: State stays local
+
+### Importing Existing Configuration
+
+If you already have a realm/client in Keycloak:
+
+```bash
+cd terraform
+tofu import keycloak_realm.test_realm test-realm
+tofu import keycloak_openid_client.test_client test-realm/client-uuid
+```
+
+Get UUIDs from Admin Console or API.
+
+---
+
 ## Development Workflow
 
 ### For Agent: Complete Development Cycle
@@ -315,10 +439,12 @@ All scripts are in `./scripts/` and are executable.
 | `test.sh [class]` | Run tests (all, class, or method) |
 | `logs.sh` | View Keycloak logs (follow mode) |
 | `debug.sh` | Show debug info and test connection |
-| `setup-realm.sh [name]` | Create new realm |
-| `create-test-client.sh [realm] [client]` | Create client + test user |
 | `status.sh` | Show complete environment status |
 | `wait-for-keycloak.sh [timeout]` | Wait for Keycloak health check |
+| `tf-init.sh` | Initialize OpenTofu (one-time) |
+| `tf-plan.sh` | Preview OpenTofu configuration changes |
+| `tf-apply.sh` | Apply OpenTofu configuration |
+| `tf-destroy.sh` | Destroy all OpenTofu-managed resources |
 
 ---
 

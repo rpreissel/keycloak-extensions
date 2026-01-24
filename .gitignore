@@ -74,3 +74,14 @@ logs/
 
 # Test output
 test-output/
+
+# Terraform
+terraform/.terraform/
+terraform/.terraform.lock.hcl
+terraform/*.tfstate
+terraform/*.tfstate.*
+terraform/*.tfplan
+
+# Secrets
+scripts/.env
+.env

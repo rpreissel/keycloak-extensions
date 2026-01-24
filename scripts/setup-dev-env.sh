@@ -1,35 +1,35 @@
 #!/bin/bash
 set -e
 
+SCRIPT_DIR="$(dirname "$0")"
+
 # Load configuration
-source "$(dirname "$0")/config.sh"
+source "$SCRIPT_DIR/config.sh"
 
 echo "🚀 Setting up complete Keycloak development environment"
 echo "========================================================"
 echo ""
 
-# Check if realm name is provided
-REALM="${1:-${DEFAULT_REALM}}"
-CLIENT="${2:-${DEFAULT_CLIENT}}"
-
-echo "📋 Configuration:"
-echo "   Realm:     $REALM"
-echo "   Client:    $CLIENT"
-echo ""
-
 # Start Keycloak
 echo "1️⃣  Starting Keycloak..."
-./scripts/start-keycloak.sh
+"$SCRIPT_DIR/start-keycloak.sh"
 
-# Setup realm
+# Wait for Keycloak
 echo ""
-echo "2️⃣  Creating realm..."
-./scripts/setup-realm.sh "$REALM"
+echo "2️⃣  Waiting for Keycloak to be ready..."
+"$SCRIPT_DIR/wait-for-keycloak.sh"
 
-# Create test client and user
+# Initialize Terraform (if not done yet)
+if [ ! -d "$SCRIPT_DIR/../terraform/.terraform" ]; then
+  echo ""
+  echo "3️⃣  Initializing OpenTofu..."
+  "$SCRIPT_DIR/tf-init.sh"
+fi
+
+# Apply Terraform configuration
 echo ""
-echo "3️⃣  Creating test client and user..."
-./scripts/create-test-client.sh "$REALM" "$CLIENT"
+echo "4️⃣  Applying OpenTofu configuration..."
+"$SCRIPT_DIR/tf-apply.sh"
 
 echo ""
 echo "========================================="
@@ -48,5 +48,9 @@ echo ""
 echo "📝 Next steps:"
 echo "   - Build extension:  ./scripts/build-deploy.sh"
 echo "   - View logs:        ./scripts/logs.sh"
+echo "   - View config:      cd terraform && tofu show"
+echo "   - Modify config:    Edit terraform/*.tf or terraform/terraform.tfvars"
+echo "   - Preview changes:  ./scripts/tf-plan.sh"
+echo "   - Apply changes:    ./scripts/tf-apply.sh"
 echo "   - Attach debugger:  F5 in VS Code"
 echo "   - Check status:     ./scripts/status.sh"
