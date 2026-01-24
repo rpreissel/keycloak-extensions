@@ -2,6 +2,7 @@ package com.example.keycloak.integration;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.hc.client5.http.classic.methods.HttpGet;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
 import org.apache.hc.client5.http.entity.UrlEncodedFormEntity;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
@@ -10,9 +11,7 @@ import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.apache.hc.core5.http.NameValuePair;
 import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.apache.hc.core5.http.message.BasicNameValuePair;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.Network;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -22,31 +21,29 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
 import java.io.BufferedReader;
-import java.io.File;
-import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Integration test using Testcontainers with Keycloak and PostgreSQL.
- * This test:
+ * 
+ * Test Flow:
  * 1. Starts PostgreSQL container
  * 2. Starts Keycloak container
  * 3. Applies Terraform configuration (realm, client, user)
  * 4. Tests login with password grant
+ * 5. Cleans up all resources
  */
 @Testcontainers
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 public class KeycloakLoginIntegrationTest {
 
     private static final String KEYCLOAK_VERSION = "26.5.2";
@@ -57,10 +54,12 @@ public class KeycloakLoginIntegrationTest {
     private static final String USERNAME = "testuser";
     private static final String PASSWORD = "test123";
     
-    private static Network network = Network.newNetwork();
+    private static final Network network = Network.newNetwork();
+    private static final ObjectMapper objectMapper = new ObjectMapper();
     
     @Container
-    private static PostgreSQLContainer<?> postgresContainer = new PostgreSQLContainer<>(DockerImageName.parse("postgres:" + POSTGRES_VERSION))
+    private static final PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>(
+            DockerImageName.parse("postgres:" + POSTGRES_VERSION))
             .withNetwork(network)
             .withNetworkAliases("postgres")
             .withDatabaseName("keycloak")
@@ -68,9 +67,10 @@ public class KeycloakLoginIntegrationTest {
             .withPassword("keycloak");
     
     @Container
-    private static GenericContainer<?> keycloakContainer = new GenericContainer<>(DockerImageName.parse("quay.io/keycloak/keycloak:" + KEYCLOAK_VERSION))
+    private static final GenericContainer<?> keycloak = new GenericContainer<>(
+            DockerImageName.parse("quay.io/keycloak/keycloak:" + KEYCLOAK_VERSION))
             .withNetwork(network)
-            .dependsOn(postgresContainer)
+            .dependsOn(postgres)
             .withEnv("KC_DB", "postgres")
             .withEnv("KC_DB_URL", "jdbc:postgresql://postgres:5432/keycloak")
             .withEnv("KC_DB_USERNAME", "keycloak")
@@ -78,7 +78,6 @@ public class KeycloakLoginIntegrationTest {
             .withEnv("KEYCLOAK_ADMIN", "admin")
             .withEnv("KEYCLOAK_ADMIN_PASSWORD", "admin")
             .withEnv("KC_HEALTH_ENABLED", "true")
-            .withEnv("KC_METRICS_ENABLED", "true")
             .withEnv("KC_HTTP_ENABLED", "true")
             .withCommand("start-dev")
             .withExposedPorts(8080)
@@ -88,274 +87,203 @@ public class KeycloakLoginIntegrationTest {
                 .withStartupTimeout(Duration.ofMinutes(5)));
     
     private static String keycloakUrl;
-    private static ObjectMapper objectMapper = new ObjectMapper();
     
     @BeforeAll
-    public static void setUp() throws Exception {
-        // Get Keycloak URL
-        keycloakUrl = String.format("http://%s:%d", 
-            keycloakContainer.getHost(), 
-            keycloakContainer.getMappedPort(8080));
+    static void setUp() throws Exception {
+        keycloakUrl = "http://%s:%d".formatted(keycloak.getHost(), keycloak.getMappedPort(8080));
+        System.out.println("✓ Keycloak started at: " + keycloakUrl);
         
-        System.out.println("Keycloak started at: " + keycloakUrl);
-        
-        // Apply Terraform configuration
         applyTerraformConfiguration();
-        
-        // Wait a bit for configuration to be fully applied
-        Thread.sleep(2000);
+        Thread.sleep(2000); // Wait for configuration to propagate
     }
     
     @AfterAll
-    public static void tearDown() throws Exception {
-        // Destroy Terraform configuration
+    static void tearDown() throws Exception {
         destroyTerraformConfiguration();
+        network.close();
+    }
+    
+    @Test
+    @Order(1)
+    @DisplayName("Container should be running")
+    void testKeycloakIsRunning() {
+        assertNotNull(keycloakUrl, "Keycloak URL should be set");
+        assertTrue(keycloak.isRunning(), "Keycloak container should be running");
+        assertTrue(postgres.isRunning(), "PostgreSQL container should be running");
+    }
+    
+    @Test
+    @Order(2)
+    @DisplayName("Should authenticate with valid credentials")
+    void testPasswordGrantLogin() throws Exception {
+        TokenResponse response = requestToken(USERNAME, PASSWORD);
         
-        // Containers will be automatically stopped by Testcontainers
-        if (network != null) {
-            network.close();
+        assertEquals(200, response.statusCode, "Should return 200 OK");
+        assertNotNull(response.accessToken, "Access token should not be null");
+        assertFalse(response.accessToken.isEmpty(), "Access token should not be empty");
+        assertEquals("Bearer", response.tokenType, "Token type should be Bearer");
+        assertTrue(response.expiresIn > 0, "Expires in should be positive");
+        
+        System.out.println("✓ Login successful - Token: " + 
+            response.accessToken.substring(0, Math.min(50, response.accessToken.length())) + "...");
+    }
+    
+    @Test
+    @Order(3)
+    @DisplayName("Should reject invalid credentials")
+    void testInvalidPasswordLogin() throws Exception {
+        TokenResponse response = requestToken(USERNAME, "wrong-password");
+        
+        assertEquals(401, response.statusCode, "Should return 401 Unauthorized");
+        assertNull(response.accessToken, "Access token should be null");
+        assertEquals("invalid_grant", response.error, "Error should be 'invalid_grant'");
+        
+        System.out.println("✓ Invalid credentials correctly rejected");
+    }
+    
+    @Test
+    @Order(4)
+    @DisplayName("Realm configuration should be accessible")
+    void testRealmConfiguration() throws Exception {
+        String realmUrl = keycloakUrl + "/realms/" + REALM_NAME;
+        
+        try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
+            HttpGet request = new HttpGet(realmUrl);
+            
+            try (CloseableHttpResponse response = httpClient.execute(request)) {
+                assertEquals(200, response.getCode(), "Realm should be accessible");
+                
+                String body = EntityUtils.toString(response.getEntity());
+                JsonNode realmInfo = objectMapper.readTree(body);
+                
+                assertEquals(REALM_NAME, realmInfo.get("realm").asText(), 
+                    "Realm name should match");
+                
+                System.out.println("✓ Realm '" + REALM_NAME + "' verified");
+            }
         }
     }
     
-    /**
-     * Apply Terraform configuration to set up realm, client, and user
-     */
+    // ==================== Helper Methods ====================
+    
+    private static TokenResponse requestToken(String username, String password) throws Exception {
+        String tokenUrl = keycloakUrl + "/realms/" + REALM_NAME + "/protocol/openid-connect/token";
+        
+        try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
+            HttpPost request = new HttpPost(tokenUrl);
+            request.setEntity(new UrlEncodedFormEntity(Arrays.asList(
+                new BasicNameValuePair("grant_type", "password"),
+                new BasicNameValuePair("client_id", CLIENT_ID),
+                new BasicNameValuePair("username", username),
+                new BasicNameValuePair("password", password),
+                new BasicNameValuePair("scope", "openid")
+            ), StandardCharsets.UTF_8));
+            
+            try (CloseableHttpResponse response = httpClient.execute(request)) {
+                int statusCode = response.getCode();
+                String body = EntityUtils.toString(response.getEntity());
+                JsonNode json = objectMapper.readTree(body);
+                
+                return new TokenResponse(
+                    statusCode,
+                    json.has("access_token") ? json.get("access_token").asText() : null,
+                    json.has("token_type") ? json.get("token_type").asText() : null,
+                    json.has("expires_in") ? json.get("expires_in").asInt() : 0,
+                    json.has("error") ? json.get("error").asText() : null
+                );
+            }
+        }
+    }
+    
     private static void applyTerraformConfiguration() throws Exception {
         System.out.println("Applying Terraform configuration...");
-        
-        // Get project root
-        Path projectRoot = Paths.get(System.getProperty("user.dir"));
-        Path terraformDir = projectRoot.resolve("terraform");
-        
-        if (!Files.exists(terraformDir)) {
-            throw new RuntimeException("Terraform directory not found: " + terraformDir);
-        }
-        
-        // Create temporary tfvars file with dynamic Keycloak URL
-        Path tfvarsFile = terraformDir.resolve("test.auto.tfvars");
-        String tfvarsContent = String.format(
-            "keycloak_url = \"%s\"\n" +
-            "admin_username = \"admin\"\n" +
-            "admin_password = \"admin\"\n" +
-            "realm_name = \"%s\"\n" +
-            "realm_display_name = \"Test Realm\"\n" +
-            "client_id = \"%s\"\n" +
-            "client_name = \"Test Client\"\n" +
-            "redirect_uris = [\"http://localhost:3000/callback\"]\n" +
-            "web_origins = [\"http://localhost:3000\"]\n" +
-            "test_username = \"%s\"\n" +
-            "test_user_email = \"test@example.com\"\n" +
-            "test_user_first_name = \"Test\"\n" +
-            "test_user_last_name = \"User\"\n" +
-            "test_user_password = \"%s\"\n",
-            keycloakUrl, REALM_NAME, CLIENT_ID, USERNAME, PASSWORD
-        );
-        Files.writeString(tfvarsFile, tfvarsContent);
+        Path terraformDir = getTerraformDir();
+        Path tfvarsFile = createTfvarsFile(terraformDir);
         
         try {
-            // Initialize Terraform
             runCommand(terraformDir, "tofu", "init");
-            
-            // Apply configuration
             runCommand(terraformDir, "tofu", "apply", "-auto-approve");
-            
-            System.out.println("Terraform configuration applied successfully");
+            System.out.println("✓ Terraform configuration applied");
         } finally {
-            // Clean up tfvars file
             Files.deleteIfExists(tfvarsFile);
         }
     }
     
-    /**
-     * Destroy Terraform configuration
-     */
     private static void destroyTerraformConfiguration() throws Exception {
         System.out.println("Destroying Terraform configuration...");
-        
-        Path projectRoot = Paths.get(System.getProperty("user.dir"));
-        Path terraformDir = projectRoot.resolve("terraform");
-        
-        if (!Files.exists(terraformDir)) {
-            return;
-        }
-        
-        // Create temporary tfvars file
-        Path tfvarsFile = terraformDir.resolve("test.auto.tfvars");
-        String tfvarsContent = String.format(
-            "keycloak_url = \"%s\"\n" +
-            "admin_username = \"admin\"\n" +
-            "admin_password = \"admin\"\n" +
-            "realm_name = \"%s\"\n" +
-            "realm_display_name = \"Test Realm\"\n" +
-            "client_id = \"%s\"\n" +
-            "client_name = \"Test Client\"\n" +
-            "redirect_uris = [\"http://localhost:3000/callback\"]\n" +
-            "web_origins = [\"http://localhost:3000\"]\n" +
-            "test_username = \"%s\"\n" +
-            "test_user_email = \"test@example.com\"\n" +
-            "test_user_first_name = \"Test\"\n" +
-            "test_user_last_name = \"User\"\n" +
-            "test_user_password = \"%s\"\n",
-            keycloakUrl, REALM_NAME, CLIENT_ID, USERNAME, PASSWORD
-        );
-        Files.writeString(tfvarsFile, tfvarsContent);
+        Path terraformDir = getTerraformDir();
+        Path tfvarsFile = createTfvarsFile(terraformDir);
         
         try {
             runCommand(terraformDir, "tofu", "destroy", "-auto-approve");
-            System.out.println("Terraform configuration destroyed");
+            System.out.println("✓ Terraform configuration destroyed");
         } catch (Exception e) {
-            System.err.println("Warning: Failed to destroy Terraform configuration: " + e.getMessage());
+            System.err.println("⚠ Warning: Failed to destroy Terraform: " + e.getMessage());
         } finally {
             Files.deleteIfExists(tfvarsFile);
         }
     }
     
-    /**
-     * Run a command and wait for completion
-     */
-    private static void runCommand(Path workingDir, String... command) throws Exception {
-        ProcessBuilder pb = new ProcessBuilder(command);
-        pb.directory(workingDir.toFile());
-        pb.redirectErrorStream(true);
+    private static Path getTerraformDir() {
+        Path terraformDir = Paths.get(System.getProperty("user.dir")).resolve("terraform");
+        if (!Files.exists(terraformDir)) {
+            throw new RuntimeException("Terraform directory not found: " + terraformDir);
+        }
+        return terraformDir;
+    }
+    
+    private static Path createTfvarsFile(Path terraformDir) throws Exception {
+        Path tfvarsFile = terraformDir.resolve("test.auto.tfvars");
+        String content = """
+            keycloak_url = "%s"
+            admin_username = "admin"
+            admin_password = "admin"
+            realm_name = "%s"
+            realm_display_name = "Test Realm"
+            client_id = "%s"
+            client_name = "Test Client"
+            redirect_uris = ["http://localhost:3000/callback"]
+            web_origins = ["http://localhost:3000"]
+            test_username = "%s"
+            test_user_email = "test@example.com"
+            test_user_first_name = "Test"
+            test_user_last_name = "User"
+            test_user_password = "%s"
+            """.formatted(keycloakUrl, REALM_NAME, CLIENT_ID, USERNAME, PASSWORD);
         
-        System.out.println("Running: " + String.join(" ", command));
+        Files.writeString(tfvarsFile, content);
+        return tfvarsFile;
+    }
+    
+    private static void runCommand(Path workingDir, String... command) throws Exception {
+        ProcessBuilder pb = new ProcessBuilder(command)
+            .directory(workingDir.toFile())
+            .redirectErrorStream(true);
         
         Process process = pb.start();
         
-        // Read output
-        try (BufferedReader reader = new BufferedReader(
-                new InputStreamReader(process.getInputStream()))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                System.out.println(line);
-            }
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+            reader.lines().forEach(System.out::println);
         }
         
-        boolean finished = process.waitFor(5, TimeUnit.MINUTES);
-        
-        if (!finished) {
+        if (!process.waitFor(5, TimeUnit.MINUTES)) {
             process.destroyForcibly();
             throw new RuntimeException("Command timed out: " + String.join(" ", command));
         }
         
         if (process.exitValue() != 0) {
-            throw new RuntimeException("Command failed with exit code " + process.exitValue() + 
-                ": " + String.join(" ", command));
+            throw new RuntimeException("Command failed (exit code %d): %s"
+                .formatted(process.exitValue(), String.join(" ", command)));
         }
     }
     
-    @Test
-    public void testKeycloakIsRunning() {
-        assertNotNull(keycloakUrl);
-        assertTrue(keycloakContainer.isRunning());
-    }
+    // ==================== Helper Classes ====================
     
-    @Test
-    public void testPasswordGrantLogin() throws Exception {
-        // Perform password grant (direct grant)
-        String tokenUrl = keycloakUrl + "/realms/" + REALM_NAME + "/protocol/openid-connect/token";
-        
-        try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
-            HttpPost httpPost = new HttpPost(tokenUrl);
-            
-            List<NameValuePair> params = new ArrayList<>();
-            params.add(new BasicNameValuePair("grant_type", "password"));
-            params.add(new BasicNameValuePair("client_id", CLIENT_ID));
-            params.add(new BasicNameValuePair("username", USERNAME));
-            params.add(new BasicNameValuePair("password", PASSWORD));
-            params.add(new BasicNameValuePair("scope", "openid"));
-            
-            httpPost.setEntity(new UrlEncodedFormEntity(params, StandardCharsets.UTF_8));
-            
-            try (CloseableHttpResponse response = httpClient.execute(httpPost)) {
-                int statusCode = response.getCode();
-                String responseBody = EntityUtils.toString(response.getEntity());
-                
-                System.out.println("Token response status: " + statusCode);
-                System.out.println("Token response body: " + responseBody);
-                
-                assertEquals(200, statusCode, "Expected successful token response");
-                
-                // Parse response
-                JsonNode jsonResponse = objectMapper.readTree(responseBody);
-                
-                // Verify token fields
-                assertTrue(jsonResponse.has("access_token"), "Response should contain access_token");
-                assertTrue(jsonResponse.has("token_type"), "Response should contain token_type");
-                assertTrue(jsonResponse.has("expires_in"), "Response should contain expires_in");
-                
-                String accessToken = jsonResponse.get("access_token").asText();
-                assertNotNull(accessToken);
-                assertFalse(accessToken.isEmpty());
-                
-                // Verify token type
-                assertEquals("Bearer", jsonResponse.get("token_type").asText());
-                
-                System.out.println("✅ Login successful!");
-                System.out.println("Access Token (first 50 chars): " + accessToken.substring(0, Math.min(50, accessToken.length())) + "...");
-            }
-        }
-    }
-    
-    @Test
-    public void testInvalidPasswordLogin() throws Exception {
-        String tokenUrl = keycloakUrl + "/realms/" + REALM_NAME + "/protocol/openid-connect/token";
-        
-        try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
-            HttpPost httpPost = new HttpPost(tokenUrl);
-            
-            List<NameValuePair> params = new ArrayList<>();
-            params.add(new BasicNameValuePair("grant_type", "password"));
-            params.add(new BasicNameValuePair("client_id", CLIENT_ID));
-            params.add(new BasicNameValuePair("username", USERNAME));
-            params.add(new BasicNameValuePair("password", "wrong-password"));
-            params.add(new BasicNameValuePair("scope", "openid"));
-            
-            httpPost.setEntity(new UrlEncodedFormEntity(params, StandardCharsets.UTF_8));
-            
-            try (CloseableHttpResponse response = httpClient.execute(httpPost)) {
-                int statusCode = response.getCode();
-                String responseBody = EntityUtils.toString(response.getEntity());
-                
-                System.out.println("Invalid login status: " + statusCode);
-                System.out.println("Invalid login response: " + responseBody);
-                
-                assertEquals(401, statusCode, "Expected unauthorized response for invalid password");
-                
-                // Parse error response
-                JsonNode jsonResponse = objectMapper.readTree(responseBody);
-                assertTrue(jsonResponse.has("error"), "Error response should contain 'error' field");
-                
-                String error = jsonResponse.get("error").asText();
-                assertEquals("invalid_grant", error, "Error should be 'invalid_grant'");
-                
-                System.out.println("✅ Invalid password correctly rejected");
-            }
-        }
-    }
-    
-    @Test
-    public void testRealmConfiguration() throws Exception {
-        // Get realm configuration
-        String realmUrl = keycloakUrl + "/realms/" + REALM_NAME;
-        
-        try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
-            org.apache.hc.client5.http.classic.methods.HttpGet httpGet = 
-                new org.apache.hc.client5.http.classic.methods.HttpGet(realmUrl);
-            
-            try (CloseableHttpResponse response = httpClient.execute(httpGet)) {
-                int statusCode = response.getCode();
-                String responseBody = EntityUtils.toString(response.getEntity());
-                
-                assertEquals(200, statusCode, "Realm should be accessible");
-                
-                JsonNode realmInfo = objectMapper.readTree(responseBody);
-                
-                assertEquals(REALM_NAME, realmInfo.get("realm").asText(), "Realm name should match");
-                
-                System.out.println("✅ Realm configuration verified");
-                System.out.println("Realm: " + realmInfo.get("realm").asText());
-            }
-        }
-    }
+    private record TokenResponse(
+        int statusCode,
+        String accessToken,
+        String tokenType,
+        int expiresIn,
+        String error
+    ) {}
 }
