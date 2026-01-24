@@ -1,0 +1,7 @@
+# Extension Deployment Platzhalter
+
+Dieses Verzeichnis wird für deployete Keycloak Extension JARs verwendet.
+
+JARs in diesem Verzeichnis werden automatisch von Keycloak geladen (via Volume-Mount).
+
+**Hinweis**: Dieses Verzeichnis ist in `.gitignore` und wird nicht versioniert.
