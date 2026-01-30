@@ -76,12 +76,12 @@ Previously used imperative scripts (`setup-realm.sh`, `create-test-client.sh`) -
 
 ### Build All Modules
 ```bash
-mvn clean package
+./mvnw clean package
 ```
 
 ### Build & Deploy
 ```bash
-mvn clean package
+./mvnw clean package
 podman exec keycloak-dev /opt/keycloak/bin/kc.sh build
 ```
 
@@ -92,10 +92,10 @@ podman exec keycloak-dev /opt/keycloak/bin/kc.sh build
 **Prefer using `./scripts/test.sh` instead!**
 
 ```bash
-mvn test                              # All tests
-mvn test -Dtest=MyTestClass           # Single class
-mvn test -Dtest=MyTestClass#method    # Single method
-mvn clean package -DskipTests         # Skip tests
+./mvnw test                              # All tests
+./mvnw test -Dtest=MyTestClass           # Single class
+./mvnw test -Dtest=MyTestClass#method    # Single method
+./mvnw clean package -DskipTests         # Skip tests
 ```
 
 ---

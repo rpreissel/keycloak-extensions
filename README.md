@@ -10,12 +10,14 @@ Entwicklungsumgebung für Keycloak Extensions (SPIs) mit Podman, Maven, und Remo
 # Podman (Container-Runtime)
 brew install podman
 
-# Java 17+ und Maven
-brew install openjdk@17 maven
+# Java 17+ (Maven Wrapper ist bereits im Projekt enthalten)
+brew install openjdk@17
 
 # Optional: httpie für API-Tests
 brew install httpie
 ```
+
+**Hinweis**: Maven muss nicht installiert werden - das Projekt verwendet Maven Wrapper (`./mvnw`).
 
 ### 2. Podman Machine initialisieren
 
@@ -101,7 +103,7 @@ podman ps
 
 ```bash
 # Build
-mvn clean package
+./mvnw clean package
 
 # Deploy (Rebuild triggern)
 podman exec keycloak-dev /opt/keycloak/bin/kc.sh build

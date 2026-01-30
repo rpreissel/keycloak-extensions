@@ -10,8 +10,8 @@ if [ ! -f "pom.xml" ]; then
     exit 1
 fi
 
-# Build with Maven
-mvn clean package
+# Build with Maven Wrapper
+./mvnw clean package
 
 if [ $? -eq 0 ]; then
     echo ""
