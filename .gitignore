@@ -41,7 +41,9 @@ out/
 .classpath
 .project
 .settings/
+.factorypath
 bin/
+META-INF/
 
 # macOS
 .DS_Store
@@ -85,3 +87,14 @@ terraform/*.tfplan
 # Secrets
 scripts/.env
 .env
+
+# Mock IDP
+mock-idp/backend/node_modules/
+mock-idp/backend/keys/*.pem
+mock-idp/backend/.env
+mock-idp/frontend/node_modules/
+mock-idp/frontend/dist/
+mock-idp/frontend/.env
+
+# OpenCode config
+opencode.jsonc

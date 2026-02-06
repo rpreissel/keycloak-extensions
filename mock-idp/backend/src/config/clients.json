@@ -1,0 +1,9 @@
+{
+  "test-client": {
+    "callback_url": "http://keycloak-dev:8080/realms/test-realm/mock-idp-callback/endpoint",
+    "allowed_redirect_uris": [
+      "http://localhost:8081/*",
+      "http://keycloak-dev:8080/*"
+    ]
+  }
+}

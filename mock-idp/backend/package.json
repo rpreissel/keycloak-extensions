@@ -1,0 +1,21 @@
+{
+  "name": "mock-identity-provider",
+  "version": "1.0.0",
+  "description": "Mock Identity Provider for Keycloak Testing",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js"
+  },
+  "keywords": ["keycloak", "identity-provider", "mock", "testing"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "jsonwebtoken": "^9.0.2",
+    "node-jose": "^2.2.0",
+    "axios": "^1.6.7",
+    "dotenv": "^16.4.5"
+  }
+}

@@ -1,0 +1,42 @@
+[
+  {
+    "id": "person-001",
+    "firstName": "Max",
+    "lastName": "Mustermann",
+    "email": "max.mustermann@example.com",
+    "birthdate": "1990-01-15",
+    "status": "verified"
+  },
+  {
+    "id": "person-002",
+    "firstName": "Erika",
+    "lastName": "Musterfrau",
+    "email": "erika.musterfrau@example.com",
+    "birthdate": "1985-06-22",
+    "status": "verified"
+  },
+  {
+    "id": "person-003",
+    "firstName": "Hans",
+    "lastName": "Schmidt",
+    "email": "hans.schmidt@example.com",
+    "birthdate": "1978-11-03",
+    "status": "rejected"
+  },
+  {
+    "id": "person-004",
+    "firstName": "Anna",
+    "lastName": "Müller",
+    "email": "anna.mueller@example.com",
+    "birthdate": "1992-09-30",
+    "status": "verified"
+  },
+  {
+    "id": "person-005",
+    "firstName": "Peter",
+    "lastName": "Weber",
+    "email": "peter.weber@example.com",
+    "birthdate": "1987-04-12",
+    "status": "pending"
+  }
+]

@@ -73,3 +73,16 @@ variable "test_user_password" {
   type        = string
   sensitive   = true
 }
+
+# Mock IDP Configuration
+variable "mock_idp_url" {
+  description = "Mock IDP service base URL"
+  type        = string
+  default     = "http://localhost:3001"
+}
+
+variable "mock_idp_enabled" {
+  description = "Enable Mock IDP authentication flow"
+  type        = bool
+  default     = true
+}

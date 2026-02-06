@@ -11,10 +11,16 @@ realm_display_name = "Test Realm"
 client_id   = "test-client"
 client_name = "Test Client"
 redirect_uris = [
-  "http://localhost:3000/*"
+  "http://localhost:3000/*",
+  "http://localhost:8081/realms/test-realm/*",  # For Mock IDP callback & Account Console
+  "https://heise.de/*",
+  "https://www.heise.de/*"
 ]
 web_origins = [
-  "http://localhost:3000"
+  "http://localhost:3000",
+  "http://localhost:8081",
+  "https://heise.de",
+  "https://www.heise.de"
 ]
 
 # Test User
@@ -23,3 +29,7 @@ test_user_email       = "testuser@example.com"
 test_user_first_name  = "Test"
 test_user_last_name   = "User"
 # test_user_password wird aus .env geladen via TF_VAR_test_user_password
+
+# Mock IDP Configuration
+mock_idp_url     = "http://localhost:3001"
+mock_idp_enabled = true

@@ -63,6 +63,27 @@ services:
       retries: 5
       start_period: 60s
 
+  mock-idp:
+    build: ./mock-idp/backend
+    container_name: mock-idp-backend
+    environment:
+      NODE_ENV: development
+      PORT: 3001
+      ISSUER_URL: http://mock-idp-backend:3001
+      KEY_PATH: /app/keys
+    volumes:
+      - ./mock-idp/backend/keys:/app/keys:z
+      - ./mock-idp/backend/src:/app/src:z
+    ports:
+      - "3001:3001"
+    networks:
+      - keycloak-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
 networks:
   keycloak-network:
     driver: bridge
