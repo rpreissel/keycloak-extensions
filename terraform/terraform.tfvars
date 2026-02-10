@@ -31,5 +31,5 @@ test_user_last_name   = "User"
 # test_user_password wird aus .env geladen via TF_VAR_test_user_password
 
 # Mock IDP Configuration
-mock_idp_url     = "http://localhost:3001"
+mock_idp_url     = "http://localhost/mock-idp"
 mock_idp_enabled = true

@@ -57,6 +57,12 @@ This script:
 ./scripts/debug.sh              # Show debug info and test connection
 ```
 
+**Web Test Client:**
+```bash
+# Test-Client läuft automatisch in Podman - kein separates Script nötig
+# Zugriff über: http://localhost/app
+```
+
 **OpenTofu Configuration (Declarative):**
 ```bash
 ./scripts/tf-init.sh                # Initialize OpenTofu (one-time)
@@ -465,12 +471,25 @@ All scripts are in `./scripts/` and are executable.
 
 ## Admin Console & URLs
 
-- **Admin Console**: http://localhost:8081
+- **Admin Console**: http://localhost/admin
 - **Username**: admin
 - **Password**: admin
 - **Debug Port**: localhost:5005
 - **Management Interface**: http://localhost:9000 (health, metrics)
 - **PostgreSQL**: localhost:5432 (keycloak/keycloak)
+- **Web Test Client**: http://localhost/app (OAuth 2.0 test application)
+
+**Note**: All services are accessible via Nginx reverse proxy on port 80.
+
+### URL Structure
+
+All external services are routed through Nginx:
+
+- `/app` → Web Test Client (Container)
+- `/admin` → Keycloak Admin Console
+- `/realms` → Keycloak Realms (OIDC endpoints)
+- `/mock-idp` → Mock IDP Service
+- `/health` → Nginx health check
 
 ### Health & Monitoring
 - **Health Check**: http://localhost:9000/health

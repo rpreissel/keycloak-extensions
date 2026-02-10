@@ -34,6 +34,12 @@ services:
       KC_DB_USERNAME: keycloak
       KC_DB_PASSWORD: keycloak
       
+      # Hostname Configuration (for correct token issuer)
+      KC_HOSTNAME: localhost
+      KC_HOSTNAME_STRICT: "false"
+      KC_HOSTNAME_STRICT_BACKCHANNEL: "false"
+      KC_HTTP_ENABLED: "true"
+      
       # Debug Configuration
       DEBUG: "true"
       DEBUG_PORT: "*:5005"
@@ -69,17 +75,54 @@ services:
     environment:
       NODE_ENV: development
       PORT: 3001
-      ISSUER_URL: http://mock-idp-backend:3001
+      ISSUER_URL: http://localhost/mock-idp
       KEY_PATH: /app/keys
     volumes:
       - ./mock-idp/backend/keys:/app/keys:z
       - ./mock-idp/backend/src:/app/src:z
-    ports:
-      - "3001:3001"
     networks:
       - keycloak-network
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  test-client:
+    build: ./test-client
+    container_name: test-client
+    environment:
+      NODE_ENV: production
+      PORT: 3002
+      KEYCLOAK_URL: http://localhost
+      KEYCLOAK_INTERNAL_URL: http://reverse-proxy
+      KEYCLOAK_REALM: test-realm
+      KEYCLOAK_CLIENT_ID: web-test-client
+      KEYCLOAK_CLIENT_SECRET: web-test-client-secret-change-in-production
+      REDIRECT_URI: http://localhost/app/
+    networks:
+      - keycloak-network
+    depends_on:
+      - keycloak
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3002/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  nginx:
+    build: ./nginx
+    container_name: reverse-proxy
+    ports:
+      - "80:80"
+    networks:
+      - keycloak-network
+    depends_on:
+      - keycloak
+      - test-client
+      - mock-idp
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
       interval: 10s
       timeout: 5s
       retries: 3

@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Keycloak Test Client</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 900px;
+            width: 100%;
+            padding: 40px;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .login-section {
+            text-align: center;
+            padding: 60px 20px;
+        }
+
+        .login-section p {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 16px;
+        }
+
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 14px 32px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(102, 126, 234, 0.5);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        button.secondary {
+            background: #dc3545;
+            box-shadow: 0 4px 12px rgba(220, 53, 69, 0.4);
+        }
+
+        button.secondary:hover {
+            box-shadow: 0 6px 16px rgba(220, 53, 69, 0.5);
+        }
+
+        .user-info {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .user-info h2 {
+            color: #333;
+            font-size: 18px;
+            margin-bottom: 15px;
+        }
+
+        .user-info p {
+            color: #666;
+            margin: 8px 0;
+            font-size: 14px;
+        }
+
+        .user-info strong {
+            color: #333;
+        }
+
+        .tokens {
+            margin-top: 30px;
+        }
+
+        .token-section {
+            margin-bottom: 25px;
+        }
+
+        .token-section h3 {
+            color: #333;
+            font-size: 16px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .token-badge {
+            background: #667eea;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .token-badge.id {
+            background: #764ba2;
+        }
+
+        pre {
+            background: #2d2d2d;
+            color: #f8f8f2;
+            padding: 20px;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-size: 13px;
+            line-height: 1.6;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .actions {
+            margin-top: 30px;
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border-left: 4px solid #dc3545;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Keycloak Test Client</h1>
+        <p class="subtitle">OAuth 2.0 / OpenID Connect Token-Viewer</p>
+
+        <div id="app">
+            <div class="loading">
+                <div class="spinner"></div>
+                <p>Lädt...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = '/app';
+
+        async function init() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const code = urlParams.get('code');
+
+            if (code) {
+                // OAuth callback - exchange code for tokens
+                await handleCallback(code);
+            } else {
+                // Check if already logged in
+                await checkSession();
+            }
+        }
+
+        async function handleCallback(code) {
+            try {
+                const response = await fetch(`${API_BASE}/callback?code=${code}`);
+                const data = await response.json();
+
+                if (data.error) {
+                    showError(data.error);
+                } else {
+                    // Remove code from URL
+                    window.history.replaceState({}, document.title, '/');
+                    showTokens(data);
+                }
+            } catch (error) {
+                showError('Fehler beim Token-Austausch: ' + error.message);
+            }
+        }
+
+        async function checkSession() {
+            try {
+                const response = await fetch(`${API_BASE}/session`, {
+                    credentials: 'include'
+                });
+                const data = await response.json();
+
+                if (data.loggedIn) {
+                    showTokens(data);
+                } else {
+                    showLogin();
+                }
+            } catch (error) {
+                showLogin();
+            }
+        }
+
+        function showLogin() {
+            document.getElementById('app').innerHTML = `
+                <div class="login-section">
+                    <p>Bitte melden Sie sich mit Ihrem Keycloak-Account an</p>
+                    <button onclick="login()">Mit Keycloak anmelden</button>
+                </div>
+            `;
+        }
+
+        function showTokens(data) {
+            const { tokens, user } = data;
+            
+            // Parse tokens to show claims
+            const accessClaims = parseJwt(tokens.access_token);
+            const idClaims = parseJwt(tokens.id_token);
+
+            document.getElementById('app').innerHTML = `
+                <div class="user-info">
+                    <h2>👤 Angemeldeter Benutzer</h2>
+                    <p><strong>Username:</strong> ${user.username}</p>
+                    <p><strong>Email:</strong> ${user.email || 'N/A'}</p>
+                    <p><strong>Name:</strong> ${user.name || 'N/A'}</p>
+                    <p><strong>Subject:</strong> ${user.sub}</p>
+                </div>
+
+                <div class="tokens">
+                    <div class="token-section">
+                        <h3>
+                            <span class="token-badge">Access Token</span>
+                            <small style="color: #666; font-weight: normal;">Für API-Zugriff</small>
+                        </h3>
+                        <pre>${JSON.stringify(accessClaims, null, 2)}</pre>
+                    </div>
+
+                    <div class="token-section">
+                        <h3>
+                            <span class="token-badge id">ID Token</span>
+                            <small style="color: #666; font-weight: normal;">Benutzer-Identität</small>
+                        </h3>
+                        <pre>${JSON.stringify(idClaims, null, 2)}</pre>
+                    </div>
+
+                    <div class="token-section">
+                        <h3>
+                            <span class="token-badge">Refresh Token</span>
+                            <small style="color: #666; font-weight: normal;">Token erneuern</small>
+                        </h3>
+                        <pre>${tokens.refresh_token ? tokens.refresh_token.substring(0, 100) + '...' : 'N/A'}</pre>
+                    </div>
+                </div>
+
+                <div class="actions">
+                    <button onclick="refreshTokens()">🔄 Token erneuern</button>
+                    <button class="secondary" onclick="logout()">Abmelden</button>
+                </div>
+            `;
+        }
+
+        function showError(message) {
+            document.getElementById('app').innerHTML = `
+                <div class="error">
+                    <strong>Fehler:</strong> ${message}
+                </div>
+                <div class="login-section">
+                    <button onclick="login()">Erneut anmelden</button>
+                </div>
+            `;
+        }
+
+        async function login() {
+            window.location.href = `${API_BASE}/login`;
+        }
+
+        async function logout() {
+            try {
+                await fetch(`${API_BASE}/logout`, {
+                    method: 'POST',
+                    credentials: 'include'
+                });
+                showLogin();
+            } catch (error) {
+                showError('Fehler beim Logout: ' + error.message);
+            }
+        }
+
+        async function refreshTokens() {
+            try {
+                const response = await fetch(`${API_BASE}/refresh`, {
+                    method: 'POST',
+                    credentials: 'include'
+                });
+                const data = await response.json();
+
+                if (data.error) {
+                    showError(data.error);
+                } else {
+                    showTokens(data);
+                }
+            } catch (error) {
+                showError('Fehler beim Token-Refresh: ' + error.message);
+            }
+        }
+
+        function parseJwt(token) {
+            try {
+                const base64Url = token.split('.')[1];
+                const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+                const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+                    return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+                }).join(''));
+
+                return JSON.parse(jsonPayload);
+            } catch (e) {
+                return { error: 'Invalid token format' };
+            }
+        }
+
+        // Initialize on page load
+        init();
+    </script>
+</body>
+</html>

@@ -64,7 +64,7 @@ public class MockIdpAuthenticator implements Authenticator {
         logger.debugf("Generated transaction_id: %s, state: %s", transactionId, state);
 
         // Get Mock IDP URL from authenticator config (or use default)
-        String mockIdpUrl = getConfigValue(context, MockIdpAuthenticatorFactory.CONFIG_MOCK_IDP_URL, "http://localhost:3001");
+        String mockIdpUrl = getConfigValue(context, MockIdpAuthenticatorFactory.CONFIG_MOCK_IDP_URL, "http://localhost/mock-idp");
         String clientId = context.getAuthenticationSession().getClient().getClientId();
 
         // Build callback URL (where Mock IDP will POST the JWT)

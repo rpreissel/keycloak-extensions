@@ -45,6 +45,29 @@ resource "keycloak_openid_client" "test_client" {
   web_origins        = var.web_origins
 }
 
+# Web Test Client (CONFIDENTIAL for OAuth code flow)
+resource "keycloak_openid_client" "web_test_client" {
+  realm_id  = keycloak_realm.test_realm.id
+  client_id = "web-test-client"
+  
+  name    = "Web Test Client"
+  enabled = true
+  
+  access_type = "CONFIDENTIAL"
+  standard_flow_enabled = true
+  direct_access_grants_enabled = false
+  
+  valid_redirect_uris = [
+    "http://localhost/app/*"
+  ]
+  web_origins = [
+    "http://localhost"
+  ]
+  
+  # Generate client secret
+  client_secret = "web-test-client-secret-change-in-production"
+}
+
 # User
 resource "keycloak_user" "test_user" {
   realm_id = keycloak_realm.test_realm.id

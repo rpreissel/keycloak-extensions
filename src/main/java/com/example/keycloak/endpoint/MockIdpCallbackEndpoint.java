@@ -72,7 +72,7 @@ public class MockIdpCallbackEndpoint {
 
             // Validate JWT
             String clientId = authSession.getClient().getClientId();
-            String mockIdpUrl = "http://localhost:3001"; // TODO: Get from config
+            String mockIdpUrl = "http://localhost/mock-idp"; // TODO: Get from config
             
             Map<String, Object> claims = MockIdpJwtValidator.validateJwt(jwt, mockIdpUrl, clientId);
             logger.infof("JWT validated successfully - sub: %s", claims.get("sub"));
