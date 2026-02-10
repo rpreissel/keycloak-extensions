@@ -29,18 +29,38 @@ public class MockIdpAuthenticator implements Authenticator {
 
     @Override
     public void authenticate(AuthenticationFlowContext context) {
-        logger.infof("Starting Mock IDP authentication for user session: %s", context.getAuthenticationSession().getParentSession().getId());
-
-        // Check if callback has already completed successfully
         AuthenticationSessionModel authSession = context.getAuthenticationSession();
+        String sessionId = authSession.getParentSession().getId();
+        
+        logger.infof("========================================");
+        logger.infof("Mock IDP Authenticator - START");
+        logger.infof("Session ID: %s", sessionId);
+        logger.infof("Client: %s", authSession.getClient().getClientId());
+        
+        // Check if user is already authenticated (should not happen if cookie auth succeeded)
+        UserModel existingUser = authSession.getAuthenticatedUser();
+        if (existingUser != null) {
+            logger.warnf("⚠️  User already authenticated: %s (username: %s)", 
+                        existingUser.getId(), existingUser.getUsername());
+            logger.warn("⚠️  This should NOT happen if cookie authenticator succeeded!");
+            logger.warn("⚠️  Cookie authenticator likely returned ATTEMPTED instead of SUCCESS");
+        } else {
+            logger.info("✓ No authenticated user yet - proceeding with Mock IDP authentication");
+        }
+        
+        // Check if callback has already completed successfully
         String callbackSuccess = authSession.getAuthNote("MOCK_IDP_CALLBACK_SUCCESS");
         
         if ("true".equals(callbackSuccess)) {
-            logger.info("Mock IDP callback already completed - completing authentication");
+            logger.info("✓ Mock IDP callback already completed - completing authentication");
             // Complete authentication with user creation
             completeAuthentication(context);
+            logger.infof("Mock IDP Authenticator - END (callback completed)");
+            logger.infof("========================================");
             return;
         }
+        
+        logger.info("→ No callback yet - redirecting to Mock IDP");
 
         // Generate transaction ID and callback token
         String transactionId = UUID.randomUUID().toString();
@@ -61,7 +81,8 @@ public class MockIdpAuthenticator implements Authenticator {
         );
         MockIdpSessionCache.put(context.getSession(), transactionId, sessionData);
 
-        logger.debugf("Generated transaction_id: %s, state: %s", transactionId, state);
+        logger.debugf("Transaction ID: %s, State: %s", transactionId, state);
+        logger.debugf("Callback token: %s", callbackToken);
 
         // Get Mock IDP URL from authenticator config (or use default)
         String mockIdpUrl = getConfigValue(context, MockIdpAuthenticatorFactory.CONFIG_MOCK_IDP_URL, "http://localhost/mock-idp");
@@ -84,7 +105,9 @@ public class MockIdpAuthenticator implements Authenticator {
                 actionUrl
         );
 
-        logger.infof("Redirecting to Mock IDP: %s", redirectUrl);
+        logger.infof("→ Redirecting to Mock IDP: %s", mockIdpUrl);
+        logger.infof("Mock IDP Authenticator - END (redirecting)");
+        logger.infof("========================================");
 
         // Redirect user to Mock IDP
         Response response = Response.seeOther(URI.create(redirectUrl)).build();
@@ -93,14 +116,21 @@ public class MockIdpAuthenticator implements Authenticator {
 
     @Override
     public void action(AuthenticationFlowContext context) {
+        logger.infof("========================================");
+        logger.infof("Mock IDP Authenticator - ACTION (user returned from Mock IDP)");
+        logger.infof("Session ID: %s", context.getAuthenticationSession().getParentSession().getId());
         // This method is called after the user returns from Mock IDP
         completeAuthentication(context);
+        logger.infof("Mock IDP Authenticator - ACTION END");
+        logger.infof("========================================");
     }
     
     /**
      * Complete authentication by validating transaction ID, creating user, and setting authenticated user
      */
     private void completeAuthentication(AuthenticationFlowContext context) {
+        logger.info("→ Completing authentication...");
+        
         // We need to:
         // 1. Validate transaction ID
         // 2. Validate JWT and extract claims
@@ -113,34 +143,38 @@ public class MockIdpAuthenticator implements Authenticator {
             // Check if callback was successful
             String callbackSuccess = authSession.getAuthNote("MOCK_IDP_CALLBACK_SUCCESS");
             if (!"true".equals(callbackSuccess)) {
-                logger.error("Mock IDP authentication failed - callback not successful");
+                logger.error("✗ Mock IDP authentication failed - callback not successful");
                 context.failure(org.keycloak.authentication.AuthenticationFlowError.IDENTITY_PROVIDER_ERROR);
                 return;
             }
+            logger.info("✓ Callback was successful");
 
             // Get transaction ID and validate it
             String transactionId = authSession.getAuthNote("MOCK_IDP_TRANSACTION_ID");
             String receivedTransactionId = authSession.getAuthNote("MOCK_IDP_RECEIVED_TRANSACTION_ID");
             
             if (transactionId == null || !transactionId.equals(receivedTransactionId)) {
-                logger.errorf("Transaction ID mismatch - expected: %s, received: %s", 
+                logger.errorf("✗ Transaction ID mismatch - expected: %s, received: %s", 
                              transactionId, receivedTransactionId);
                 context.failure(org.keycloak.authentication.AuthenticationFlowError.IDENTITY_PROVIDER_ERROR);
                 return;
             }
             
-            logger.debugf("Transaction ID validated: %s", transactionId);
+            logger.debugf("✓ Transaction ID validated: %s", transactionId);
 
             // Get validated JWT claims from auth session
             String jwtClaimsJson = authSession.getAuthNote("MOCK_IDP_JWT_CLAIMS");
             if (jwtClaimsJson == null) {
-                logger.error("JWT claims not found in session");
+                logger.error("✗ JWT claims not found in session");
                 context.failure(org.keycloak.authentication.AuthenticationFlowError.IDENTITY_PROVIDER_ERROR);
                 return;
             }
+            logger.info("✓ JWT claims found");
 
             // Parse JWT claims (stored as JSON)
             Map<String, Object> claims = parseJwtClaims(jwtClaimsJson);
+            String subject = (String) claims.get("sub");
+            logger.infof("✓ JWT claims parsed - subject: %s", subject);
             
             // Create or update user using service
             MockIdpUserService userService = new MockIdpUserService(
@@ -148,15 +182,16 @@ public class MockIdpAuthenticator implements Authenticator {
                 context.getRealm()
             );
             UserModel user = userService.createOrUpdateUser(claims);
+            logger.infof("✓ User created/updated: %s", user.getUsername());
             
             // Set user in authentication session
             authSession.setAuthenticatedUser(user);
             
-            logger.infof("Mock IDP authentication successful for user: %s", user.getUsername());
+            logger.infof("✓ Mock IDP authentication successful for user: %s", user.getUsername());
             context.success();
             
         } catch (Exception e) {
-            logger.errorf(e, "Failed to complete Mock IDP authentication");
+            logger.errorf(e, "✗ Failed to complete Mock IDP authentication");
             context.failure(org.keycloak.authentication.AuthenticationFlowError.IDENTITY_PROVIDER_ERROR);
         }
     }

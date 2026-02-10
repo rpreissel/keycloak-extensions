@@ -34,7 +34,8 @@ public class MockIdpCallbackEndpoint {
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     public Response handleCallback(Map<String, String> payload) {
-        logger.info("Received Mock IDP callback");
+        logger.info("========================================");
+        logger.info("Mock IDP Callback Endpoint - START");
 
         try {
             // Extract parameters from payload
@@ -43,39 +44,50 @@ public class MockIdpCallbackEndpoint {
             String callbackToken = payload.get("callback_token");
 
             if (jwt == null || transactionId == null || callbackToken == null) {
-                logger.error("Missing required parameters in callback");
+                logger.error("✗ Missing required parameters in callback");
+                logger.info("Mock IDP Callback Endpoint - END (error)");
+                logger.info("========================================");
                 return errorResponse("Missing required parameters: jwt, transaction_id, or callback_token");
             }
 
-            logger.debugf("Processing callback - transaction_id: %s", transactionId);
+            logger.infof("→ Processing callback - transaction_id: %s", transactionId);
 
             // Find authentication session by transaction ID
             AuthenticationSessionModel authSession = findAuthenticationSession(transactionId);
             if (authSession == null) {
-                logger.errorf("Authentication session not found for transaction_id: %s", transactionId);
+                logger.errorf("✗ Authentication session not found for transaction_id: %s", transactionId);
+                logger.info("Mock IDP Callback Endpoint - END (session not found)");
+                logger.info("========================================");
                 return errorResponse("Invalid or expired transaction ID");
             }
+            logger.info("✓ Authentication session found");
             
             // Validate transaction ID matches
             String expectedTransactionId = authSession.getAuthNote("MOCK_IDP_TRANSACTION_ID");
             if (!transactionId.equals(expectedTransactionId)) {
-                logger.error("Transaction ID mismatch");
+                logger.error("✗ Transaction ID mismatch");
+                logger.info("Mock IDP Callback Endpoint - END (tx mismatch)");
+                logger.info("========================================");
                 return errorResponse("Transaction ID mismatch");
             }
+            logger.info("✓ Transaction ID validated");
 
             // Validate callback token
             String expectedToken = authSession.getAuthNote("MOCK_IDP_CALLBACK_TOKEN");
             if (!callbackToken.equals(expectedToken)) {
-                logger.error("Callback token mismatch");
+                logger.error("✗ Callback token mismatch");
+                logger.info("Mock IDP Callback Endpoint - END (token mismatch)");
+                logger.info("========================================");
                 return errorResponse("Invalid callback token");
             }
+            logger.info("✓ Callback token validated");
 
             // Validate JWT
             String clientId = authSession.getClient().getClientId();
             String mockIdpUrl = "http://localhost/mock-idp"; // TODO: Get from config
             
             Map<String, Object> claims = MockIdpJwtValidator.validateJwt(jwt, mockIdpUrl, clientId);
-            logger.infof("JWT validated successfully - sub: %s", claims.get("sub"));
+            logger.infof("✓ JWT validated successfully - sub: %s", claims.get("sub"));
 
             // Store JWT claims in auth session for later processing by authenticator
             ObjectMapper mapper = new ObjectMapper();
@@ -88,7 +100,9 @@ public class MockIdpCallbackEndpoint {
             // Mark callback as successful
             authSession.setAuthNote("MOCK_IDP_CALLBACK_SUCCESS", "true");
 
-            logger.infof("Mock IDP callback processed successfully - sub: %s", claims.get("sub"));
+            logger.infof("✓ Mock IDP callback processed successfully - sub: %s", claims.get("sub"));
+            logger.info("Mock IDP Callback Endpoint - END (success)");
+            logger.info("========================================");
 
             // Return success response
             Map<String, Object> response = new HashMap<>();
@@ -98,7 +112,9 @@ public class MockIdpCallbackEndpoint {
             return Response.ok(response).build();
 
         } catch (Exception e) {
-            logger.errorf(e, "Failed to process Mock IDP callback");
+            logger.errorf(e, "✗ Failed to process Mock IDP callback");
+            logger.info("Mock IDP Callback Endpoint - END (exception)");
+            logger.info("========================================");
             return errorResponse("Callback processing failed: " + e.getMessage());
         }
     }
