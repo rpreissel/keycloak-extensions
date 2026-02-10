@@ -1,14 +1,6 @@
-upstream keycloak {
-    server keycloak-dev:8080;
-}
-
-upstream test_client {
-    server test-client:3002;
-}
-
-upstream mock_idp {
-    server mock-idp-backend:3001;
-}
+# DNS Resolver - auto-detected via environment variable
+resolver ${NGINX_RESOLVER} valid=10s ipv6=off;
+resolver_timeout 5s;
 
 # Rate limiting
 limit_req_zone $binary_remote_addr zone=general:10m rate=10r/s;
@@ -17,6 +9,11 @@ limit_req_zone $binary_remote_addr zone=auth:10m rate=5r/s;
 server {
     listen 80;
     server_name localhost;
+    
+    # Backend variables for dynamic DNS resolution
+    set $keycloak_backend "keycloak-dev:8080";
+    set $test_client_backend "test-client:3002";
+    set $mock_idp_backend "mock-idp-backend:3001";
 
     # Security headers
     add_header X-Frame-Options "SAMEORIGIN" always;
@@ -28,7 +25,7 @@ server {
     access_log /var/log/nginx/access.log;
     error_log /var/log/nginx/error.log warn;
 
-    # Root location - redirect to test client
+    # Root redirect
     location = / {
         return 301 /app;
     }
@@ -37,37 +34,25 @@ server {
     location /app/ {
         limit_req zone=general burst=20 nodelay;
         
-        rewrite ^/app/(.*) /$1 break;
-        proxy_pass http://test_client;
-        proxy_http_version 1.1;
+        rewrite ^/app/(.*)$ /$1 break;
+        proxy_pass http://$test_client_backend;
         
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_set_header X-Forwarded-Host $host;
-        
-        # WebSocket support (falls benötigt)
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        
-        # Timeouts
-        proxy_connect_timeout 60s;
-        proxy_send_timeout 60s;
-        proxy_read_timeout 60s;
     }
     
-    # Test Client root redirect
     location = /app {
         return 301 /app/;
     }
 
-    # Keycloak Admin Console & Admin API
+    # Keycloak Admin Console
     location /admin {
         limit_req zone=auth burst=10 nodelay;
         
-        proxy_pass http://keycloak/admin;
-        proxy_http_version 1.1;
+        proxy_pass http://$keycloak_backend$request_uri;
         
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
@@ -76,23 +61,20 @@ server {
         proxy_set_header X-Forwarded-Host $host;
         proxy_set_header X-Forwarded-Port $server_port;
         
-        # Keycloak benötigt diese Header für korrekte URL-Generierung
         proxy_buffer_size 128k;
         proxy_buffers 4 256k;
         proxy_busy_buffers_size 256k;
         
-        # Timeouts für Auth-Flows
         proxy_connect_timeout 90s;
         proxy_send_timeout 90s;
         proxy_read_timeout 90s;
     }
 
-    # Keycloak Realms (wichtig für OIDC)
+    # Keycloak Realms (OIDC endpoints)
     location /realms {
         limit_req zone=auth burst=10 nodelay;
         
-        proxy_pass http://keycloak/realms;
-        proxy_http_version 1.1;
+        proxy_pass http://$keycloak_backend$request_uri;
         
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
@@ -106,36 +88,20 @@ server {
         proxy_busy_buffers_size 256k;
     }
 
-    # Keycloak Resources (CSS, JS, etc.)
+    # Keycloak static resources (CSS, JS, fonts, etc.)
     location /resources {
-        proxy_pass http://keycloak/resources;
-        proxy_http_version 1.1;
+        proxy_pass http://$keycloak_backend$request_uri;
         
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
-        
-        # Caching für statische Ressourcen
-        proxy_cache_valid 200 1h;
-        proxy_cache_bypass $http_pragma $http_authorization;
-        add_header X-Cache-Status $upstream_cache_status;
     }
 
-    # Keycloak JS Adapter
-    location /js {
-        proxy_pass http://keycloak/js;
-        proxy_http_version 1.1;
-        
-        proxy_set_header Host $host;
-        proxy_cache_valid 200 1h;
-    }
-
-    # Mock IDP (für Custom Extension)
+    # Mock IDP Service
     location /mock-idp/ {
         limit_req zone=general burst=20 nodelay;
         
-        rewrite ^/mock-idp/(.*) /$1 break;
-        proxy_pass http://mock_idp;
-        proxy_http_version 1.1;
+        rewrite ^/mock-idp/(.*)$ /$1 break;
+        proxy_pass http://$mock_idp_backend;
         
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
@@ -143,17 +109,15 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
     }
     
-    # Mock IDP root redirect
     location = /mock-idp {
         return 301 /mock-idp/;
     }
 
-    # Mock IDP select endpoint (called from verify page)
+    # Mock IDP select endpoint
     location /select {
         limit_req zone=general burst=20 nodelay;
         
-        proxy_pass http://mock_idp/select;
-        proxy_http_version 1.1;
+        proxy_pass http://$mock_idp_backend$request_uri;
         
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
@@ -161,19 +125,19 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 
-    # Health check endpoint
+    # Health check
     location /health {
         access_log off;
         return 200 "healthy\n";
         add_header Content-Type text/plain;
     }
 
-    # Nginx status (optional, für Monitoring)
+    # Nginx status (monitoring)
     location /nginx-status {
         stub_status on;
         access_log off;
         allow 127.0.0.1;
-        allow 172.16.0.0/12;  # Docker/Podman networks
+        allow 172.16.0.0/12;
         deny all;
     }
 }
