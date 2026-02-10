@@ -202,6 +202,7 @@
 
     <script>
         const API_BASE = '/app';
+        let currentSession = null; // Store current session data including tokens
 
         async function init() {
             const urlParams = new URLSearchParams(window.location.search);
@@ -226,6 +227,7 @@
                 } else {
                     // Remove code from URL
                     window.history.replaceState({}, document.title, '/');
+                    currentSession = data; // Store session data
                     showTokens(data);
                 }
             } catch (error) {
@@ -241,8 +243,10 @@
                 const data = await response.json();
 
                 if (data.loggedIn) {
+                    currentSession = data; // Store session data
                     showTokens(data);
                 } else {
+                    currentSession = null;
                     showLogin();
                 }
             } catch (error) {
@@ -303,7 +307,11 @@
 
                 <div class="actions">
                     <button onclick="refreshTokens()">🔄 Token erneuern</button>
-                    <button class="secondary" onclick="logout()">Abmelden</button>
+                    <button class="secondary" onclick="logout()">🚪 Abmelden</button>
+                </div>
+                
+                <div style="margin-top: 20px; padding: 15px; background: #e3f2fd; border-radius: 8px; font-size: 13px; color: #1565c0;">
+                    <strong>💡 Hinweis:</strong> "Abmelden" beendet die App-Session UND die Keycloak SSO-Session (löscht SSO-Cookie).
                 </div>
             `;
         }
@@ -324,15 +332,36 @@
         }
 
         async function logout() {
+            // To properly destroy the SSO cookie, we need to redirect the browser
+            // to Keycloak's logout endpoint with id_token_hint parameter.
+            const keycloakUrl = 'http://localhost';
+            const realm = 'test-realm';
+            const redirectUri = encodeURIComponent('http://localhost/app/');
+            
+            // Get id_token from current session
+            const idToken = currentSession?.tokens?.id_token;
+            
             try {
+                // Clear app session first
                 await fetch(`${API_BASE}/logout`, {
                     method: 'POST',
                     credentials: 'include'
                 });
-                showLogin();
             } catch (error) {
-                showError('Fehler beim Logout: ' + error.message);
+                console.error('App logout error:', error);
             }
+            
+            // Clear local session
+            currentSession = null;
+            
+            // Build logout URL with id_token_hint to skip confirmation page
+            let logoutUrl = `${keycloakUrl}/realms/${realm}/protocol/openid-connect/logout?post_logout_redirect_uri=${redirectUri}`;
+            if (idToken) {
+                logoutUrl += `&id_token_hint=${encodeURIComponent(idToken)}`;
+            }
+            
+            // Redirect to Keycloak logout to destroy SSO cookie
+            window.location.href = logoutUrl;
         }
 
         async function refreshTokens() {
@@ -346,6 +375,7 @@
                 if (data.error) {
                     showError(data.error);
                 } else {
+                    currentSession = data; // Update session data
                     showTokens(data);
                 }
             } catch (error) {

@@ -191,31 +191,44 @@ app.post('/refresh', async (req, res) => {
  */
 app.post('/logout', async (req, res) => {
     const refreshToken = req.session.tokens?.refresh_token;
+    const idToken = req.session.tokens?.id_token;
     
-    // Clear session first
+    // Logout from Keycloak (revoke tokens AND destroy SSO session)
+    if (refreshToken || idToken) {
+        try {
+            // Use id_token_hint to properly terminate the SSO session
+            const logoutParams = new URLSearchParams({
+                client_id: CLIENT_ID,
+                client_secret: CLIENT_SECRET
+            });
+            
+            // Add id_token_hint to destroy SSO cookie
+            if (idToken) {
+                logoutParams.append('id_token_hint', idToken);
+            }
+            
+            // Also revoke refresh token
+            if (refreshToken) {
+                logoutParams.append('refresh_token', refreshToken);
+            }
+            
+            await axios.post(KEYCLOAK_LOGOUT_URL, logoutParams, {
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                }
+            });
+            console.log('👋 Logged out from Keycloak (SSO session destroyed)');
+        } catch (error) {
+            console.error('Keycloak logout error:', error.response?.data || error.message);
+        }
+    }
+    
+    // Clear session after Keycloak logout
     req.session.destroy((err) => {
         if (err) {
             console.error('Session destroy error:', err);
         }
     });
-    
-    // Logout from Keycloak
-    if (refreshToken) {
-        try {
-            await axios.post(KEYCLOAK_LOGOUT_URL, new URLSearchParams({
-                client_id: CLIENT_ID,
-                client_secret: CLIENT_SECRET,
-                refresh_token: refreshToken
-            }), {
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded'
-                }
-            });
-            console.log('👋 Logged out from Keycloak');
-        } catch (error) {
-            console.error('Keycloak logout error:', error.response?.data || error.message);
-        }
-    }
     
     res.json({ success: true });
 });
