@@ -83,3 +83,100 @@ resource "keycloak_user" "test_user" {
     temporary = false
   }
 }
+
+# Identity Provider - Mock IDP (OIDC)
+resource "keycloak_oidc_identity_provider" "mock_idp" {
+  realm             = keycloak_realm.test_realm.id
+  alias             = "mock-idp"
+  display_name      = "Mock Identity Provider"
+  enabled           = true
+  
+  # Trust email from IDP
+  trust_email       = true
+  
+  # Sync mode - import user if not exists
+  sync_mode         = "IMPORT"
+  
+  # OIDC Configuration
+  authorization_url = "http://localhost/mock-idp/authorize"
+  token_url         = "http://reverse-proxy/mock-idp/token"  # Internal container URL
+  client_id         = "keycloak"
+  client_secret     = "not-used-in-public-flow"
+  
+  # Default scopes
+  default_scopes    = "openid profile email"
+  
+  # UI settings
+  hide_on_login_page = false
+  
+  # Additional configuration
+  extra_config = {
+    "clientAuthMethod" = "client_secret_post"
+  }
+}
+
+# Attribute Mappers for Mock IDP
+resource "keycloak_custom_identity_provider_mapper" "mock_idp_username" {
+  realm                    = keycloak_realm.test_realm.id
+  name                     = "username"
+  identity_provider_alias  = keycloak_oidc_identity_provider.mock_idp.alias
+  identity_provider_mapper = "oidc-user-attribute-idp-mapper"
+
+  extra_config = {
+    claim              = "sub"
+    "user.attribute"   = "username"
+    syncMode           = "INHERIT"
+  }
+}
+
+resource "keycloak_custom_identity_provider_mapper" "mock_idp_email" {
+  realm                    = keycloak_realm.test_realm.id
+  name                     = "email"
+  identity_provider_alias  = keycloak_oidc_identity_provider.mock_idp.alias
+  identity_provider_mapper = "oidc-user-attribute-idp-mapper"
+
+  extra_config = {
+    claim              = "email"
+    "user.attribute"   = "email"
+    syncMode           = "INHERIT"
+  }
+}
+
+resource "keycloak_custom_identity_provider_mapper" "mock_idp_first_name" {
+  realm                    = keycloak_realm.test_realm.id
+  name                     = "firstName"
+  identity_provider_alias  = keycloak_oidc_identity_provider.mock_idp.alias
+  identity_provider_mapper = "oidc-user-attribute-idp-mapper"
+
+  extra_config = {
+    claim              = "given_name"
+    "user.attribute"   = "firstName"
+    syncMode           = "INHERIT"
+  }
+}
+
+resource "keycloak_custom_identity_provider_mapper" "mock_idp_last_name" {
+  realm                    = keycloak_realm.test_realm.id
+  name                     = "lastName"
+  identity_provider_alias  = keycloak_oidc_identity_provider.mock_idp.alias
+  identity_provider_mapper = "oidc-user-attribute-idp-mapper"
+
+  extra_config = {
+    claim              = "family_name"
+    "user.attribute"   = "lastName"
+    syncMode           = "INHERIT"
+  }
+}
+
+resource "keycloak_custom_identity_provider_mapper" "mock_idp_verification_status" {
+  realm                    = keycloak_realm.test_realm.id
+  name                     = "verificationStatus"
+  identity_provider_alias  = keycloak_oidc_identity_provider.mock_idp.alias
+  identity_provider_mapper = "oidc-user-attribute-idp-mapper"
+
+  extra_config = {
+    claim              = "verification_status"
+    "user.attribute"   = "verificationStatus"
+    syncMode           = "INHERIT"
+  }
+}

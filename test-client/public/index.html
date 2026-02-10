@@ -257,8 +257,25 @@
         function showLogin() {
             document.getElementById('app').innerHTML = `
                 <div class="login-section">
-                    <p>Bitte melden Sie sich mit Ihrem Keycloak-Account an</p>
-                    <button onclick="login()">Mit Keycloak anmelden</button>
+                    <h2 style="color: #333; margin-bottom: 20px;">Wählen Sie Ihre Anmeldemethode</h2>
+                    <p style="margin-bottom: 30px;">Melden Sie sich mit Benutzername/Passwort oder Mock IDP an</p>
+                    
+                    <div style="display: flex; gap: 20px; justify-content: center; flex-wrap: wrap; margin-bottom: 30px;">
+                        <button onclick="loginWithPassword()" style="flex: 1; min-width: 200px;">
+                            🔑 Benutzername & Passwort
+                        </button>
+                        <button onclick="loginWithMockIdp()" style="flex: 1; min-width: 200px; background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+                            🆔 Mock Identity Provider
+                        </button>
+                    </div>
+                    
+                    <div style="background: #f0f9ff; border-left: 4px solid #0284c7; padding: 15px; border-radius: 4px; text-align: left; margin-top: 30px;">
+                        <p style="color: #0369a1; font-size: 14px; margin: 5px 0;"><strong>Benutzername & Passwort:</strong></p>
+                        <p style="color: #0369a1; font-size: 13px; margin: 5px 0 15px 0;">Username: <code>testuser</code> / Password: <code>test123</code></p>
+                        
+                        <p style="color: #0369a1; font-size: 14px; margin: 5px 0;"><strong>Mock IDP:</strong></p>
+                        <p style="color: #0369a1; font-size: 13px; margin: 5px 0;">Wählen Sie eine Test-Person mit vorkonfigurierter Identität</p>
+                    </div>
                 </div>
             `;
         }
@@ -329,6 +346,16 @@
 
         async function login() {
             window.location.href = `${API_BASE}/login`;
+        }
+
+        async function loginWithPassword() {
+            // Standard login ohne IDP hint
+            window.location.href = `${API_BASE}/login`;
+        }
+
+        async function loginWithMockIdp() {
+            // Login mit kc_idp_hint=mock-idp Parameter
+            window.location.href = `${API_BASE}/login?kc_idp_hint=mock-idp`;
         }
 
         async function logout() {

@@ -5,6 +5,7 @@ const keyService = require('./services/keys.service');
 const authRoutes = require('./routes/auth');
 const callbackRoutes = require('./routes/callback');
 const utilityRoutes = require('./routes/utility');
+const oidcRoutes = require('./routes/oidc');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -24,20 +25,30 @@ app.use((req, res, next) => {
 });
 
 // Routes
-app.use('/', authRoutes);      // /verify
-app.use('/', callbackRoutes);  // /select
+app.use('/', oidcRoutes);      // OIDC endpoints (/.well-known/openid-configuration, /authorize, /token, /userinfo)
+app.use('/', authRoutes);      // /verify (legacy)
+app.use('/', callbackRoutes);  // /select (legacy)
 app.use('/', utilityRoutes);   // /health, /.well-known/jwks.json
 
 // Root endpoint
 app.get('/', (req, res) => {
+    const issuer = process.env.ISSUER_URL || 'http://localhost/mock-idp';
     res.json({
         service: 'Mock Identity Provider',
-        version: '1.0.0',
+        version: '2.0.0',
+        mode: 'OIDC Provider',
+        issuer: issuer,
         endpoints: {
+            // OIDC endpoints
+            discovery: `${issuer}/.well-known/openid-configuration`,
+            authorize: `${issuer}/authorize`,
+            token: `${issuer}/token`,
+            userinfo: `${issuer}/userinfo`,
+            jwks: `${issuer}/.well-known/jwks.json`,
+            // Legacy endpoints
             verify: 'GET /verify?client_id=...&transaction_id=...&callback_token=...&state=...&redirect_uri=...',
             select: 'POST /select (JSON body)',
-            health: 'GET /health',
-            jwks: 'GET /.well-known/jwks.json'
+            health: 'GET /health'
         }
     });
 });
@@ -64,15 +75,22 @@ async function start() {
         
         // Start server
         app.listen(PORT, () => {
+            const issuer = process.env.ISSUER_URL || 'http://localhost/mock-idp';
             console.log('========================================');
             console.log(`Server running on port ${PORT}`);
             console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-            console.log(`Issuer URL: ${process.env.ISSUER_URL}`);
+            console.log(`Issuer URL: ${issuer}`);
             console.log('========================================');
-            console.log('Endpoints:');
-            console.log(`  - Verify:  http://localhost:${PORT}/verify`);
-            console.log(`  - Health:  http://localhost:${PORT}/health`);
-            console.log(`  - JWKS:    http://localhost:${PORT}/.well-known/jwks.json`);
+            console.log('OIDC Endpoints:');
+            console.log(`  - Discovery:   ${issuer}/.well-known/openid-configuration`);
+            console.log(`  - Authorize:   ${issuer}/authorize`);
+            console.log(`  - Token:       ${issuer}/token`);
+            console.log(`  - UserInfo:    ${issuer}/userinfo`);
+            console.log(`  - JWKS:        ${issuer}/.well-known/jwks.json`);
+            console.log('');
+            console.log('Legacy Endpoints:');
+            console.log(`  - Verify:      http://localhost:${PORT}/verify`);
+            console.log(`  - Health:      http://localhost:${PORT}/health`);
             console.log('========================================');
         });
     } catch (error) {

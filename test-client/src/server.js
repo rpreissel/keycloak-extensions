@@ -66,7 +66,16 @@ app.get('/login', (req, res) => {
     req.session.oauth_state = state;
     authUrl.searchParams.append('state', state);
     
-    console.log('🔐 Redirecting to Keycloak login:', authUrl.toString());
+    // Forward kc_idp_hint parameter if provided
+    const idpHint = req.query.kc_idp_hint;
+    if (idpHint) {
+        authUrl.searchParams.append('kc_idp_hint', idpHint);
+        console.log('🔐 Redirecting to Keycloak login with IDP hint:', idpHint);
+    } else {
+        console.log('🔐 Redirecting to Keycloak login (standard flow)');
+    }
+    
+    console.log('   URL:', authUrl.toString());
     res.redirect(authUrl.toString());
 });
 
@@ -124,6 +133,8 @@ app.get('/callback', async (req, res) => {
         
     } catch (error) {
         console.error('❌ Token exchange failed:', error.response?.data || error.message);
+        console.error('   Full error:', error);
+        console.error('   Stack:', error.stack);
         res.json({ 
             error: 'Token exchange failed',
             details: error.response?.data || error.message
@@ -248,13 +259,17 @@ app.get('/health', (req, res) => {
  * Parse JWT token
  */
 function parseJwt(token) {
-    const base64Url = token.split('.')[1];
-    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-    const jsonPayload = decodeURIComponent(Buffer.from(base64, 'base64').toString().split('').map(c => {
-        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-    }).join(''));
-    
-    return JSON.parse(jsonPayload);
+    try {
+        const base64Url = token.split('.')[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        // Decode base64 directly without URI encoding
+        const jsonPayload = Buffer.from(base64, 'base64').toString('utf8');
+        
+        return JSON.parse(jsonPayload);
+    } catch (error) {
+        console.error('Failed to parse JWT:', error.message);
+        return null;
+    }
 }
 
 // Start server

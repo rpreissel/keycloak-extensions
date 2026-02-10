@@ -37,6 +37,28 @@ public class MockIdpAuthenticator implements Authenticator {
         logger.infof("Session ID: %s", sessionId);
         logger.infof("Client: %s", authSession.getClient().getClientId());
         
+        // Check for kc_idp_hint parameter
+        jakarta.ws.rs.core.MultivaluedMap<String, String> params = context.getHttpRequest()
+            .getUri().getQueryParameters();
+        String idpHint = params.getFirst("kc_idp_hint");
+        
+        logger.infof("IDP Hint parameter: %s", idpHint);
+        
+        // Only proceed if hint is "mock-idp" OR if we're handling a callback
+        boolean isMockIdpHint = "mock-idp".equals(idpHint);
+        String callbackSuccess = authSession.getAuthNote("MOCK_IDP_CALLBACK_SUCCESS");
+        boolean isCallback = "true".equals(callbackSuccess);
+        
+        if (!isMockIdpHint && !isCallback) {
+            logger.info("✗ No kc_idp_hint=mock-idp parameter - skipping Mock IDP (ATTEMPTED)");
+            logger.infof("Mock IDP Authenticator - END (attempted)");
+            logger.infof("========================================");
+            context.attempted();
+            return;
+        }
+        
+        logger.info("✓ kc_idp_hint=mock-idp detected OR callback in progress");
+        
         // Check if user is already authenticated (should not happen if cookie auth succeeded)
         UserModel existingUser = authSession.getAuthenticatedUser();
         if (existingUser != null) {
@@ -49,9 +71,7 @@ public class MockIdpAuthenticator implements Authenticator {
         }
         
         // Check if callback has already completed successfully
-        String callbackSuccess = authSession.getAuthNote("MOCK_IDP_CALLBACK_SUCCESS");
-        
-        if ("true".equals(callbackSuccess)) {
+        if (isCallback) {
             logger.info("✓ Mock IDP callback already completed - completing authentication");
             // Complete authentication with user creation
             completeAuthentication(context);

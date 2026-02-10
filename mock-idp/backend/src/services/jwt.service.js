@@ -57,6 +57,41 @@ class JWTService {
     }
 
     /**
+     * Generate OIDC ID Token
+     * @param {object} claims - User claims to include in token
+     * @returns {string} Signed ID Token
+     */
+    generateToken(claims) {
+        // Get private key
+        const privateKey = keyService.getPrivateKey();
+        const privateKeyPem = privateKey.toPEM(true);
+
+        // Current timestamp
+        const now = Math.floor(Date.now() / 1000);
+
+        // ID Token payload (OIDC standard)
+        const payload = {
+            // Required OIDC claims
+            iss: this.issuer,                  // Issuer
+            sub: claims.sub,                   // Subject
+            aud: claims.aud,                   // Audience
+            iat: now,                          // Issued at
+            exp: now + 3600,                   // Expires in 1 hour
+            
+            // Optional OIDC claims
+            ...claims
+        };
+
+        // Sign JWT with RS256
+        const token = jwt.sign(payload, privateKeyPem, {
+            algorithm: 'RS256',
+            keyid: privateKey.kid || 'mock-idp-key-1'
+        });
+
+        return token;
+    }
+
+    /**
      * Verify a JWT (for testing purposes)
      * @param {string} token - JWT to verify
      * @returns {object} Decoded payload
